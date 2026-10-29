@@ -1,6 +1,6 @@
 blueprint:
-  name: Treppenlicht mit zwei Tastern, Helligkeit, Farbe und Nachtmodus
-  description: Zwei Taster (EG und 1.OG) schalten drei Treppenlichter nacheinander ein oder aus. Doppelklick startet den Nachtmodus mit eigener Helligkeit und Farbe. Ist mindestens ein Licht an, gehen alle aus.
+  name: Treppenlicht mit zwei Tastern, Helligkeit, Farbe, Nachtmodus und Übergang
+  description: Zwei Taster (EG und 1.OG) schalten drei Treppenlichter nacheinander ein oder aus, mit weichem Übergang. Doppelklick setzt immer den Nachtmodus mit eigener Helligkeit und Farbe und schaltet nie aus.
   domain: automation
   input:
     taster_eg:
@@ -39,6 +39,15 @@ blueprint:
       name: Farbe (leer lassen, wenn die Lampen keine Farbe können)
       selector:
         color_rgb: {}
+    uebergang:
+      name: Übergangszeit (Ein- und Ausblenden)
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 0.5
+          unit_of_measurement: s
     helligkeit_nacht:
       name: Helligkeit Nachtmodus (Doppelklick)
       default: 5
@@ -86,18 +95,20 @@ variables:
   oben: !input licht_oben
   helligkeit: !input helligkeit
   farbe: !input farbe
+  uebergang: !input uebergang
   helligkeit_nacht: !input helligkeit_nacht
   farbe_nacht: !input farbe_nacht
 
 actions:
   - variables:
+      nacht: "{{ trigger.id in ['eg_double', 'og_double'] }}"
       ein_liste: "{{ [unten, mitte, oben] if trigger.id in ['eg', 'eg_double'] else [oben, mitte, unten] }}"
       aus_liste: "{{ [oben, mitte, unten] if trigger.id in ['eg', 'eg_double'] else [unten, mitte, oben] }}"
-      ziel_helligkeit: "{{ helligkeit_nacht if trigger.id in ['eg_double', 'og_double'] else helligkeit }}"
-      ziel_farbe: "{{ farbe_nacht if trigger.id in ['eg_double', 'og_double'] else farbe }}"
+      ziel_helligkeit: "{{ helligkeit_nacht if nacht else helligkeit }}"
+      ziel_farbe: "{{ farbe_nacht if nacht else farbe }}"
   - if:
       - condition: template
-        value_template: "{{ is_state(unten, 'on') or is_state(mitte, 'on') or is_state(oben, 'on') }}"
+        value_template: "{{ not nacht and (is_state(unten, 'on') or is_state(mitte, 'on') or is_state(oben, 'on')) }}"
     then:
       - repeat:
           for_each: "{{ aus_liste }}"
@@ -105,6 +116,8 @@ actions:
             - action: light.turn_off
               target:
                 entity_id: "{{ repeat.item }}"
+              data:
+                transition: "{{ uebergang }}"
             - delay:
                 milliseconds: 250
     else:
@@ -116,6 +129,7 @@ actions:
                 entity_id: "{{ repeat.item }}"
               data:
                 brightness_pct: "{{ ziel_helligkeit }}"
+                transition: "{{ uebergang }}"
             - if:
                 - condition: template
                   value_template: "{{ (ziel_farbe or []) | length > 0 }}"
@@ -125,6 +139,7 @@ actions:
                     entity_id: "{{ repeat.item }}"
                   data:
                     rgb_color: "{{ ziel_farbe }}"
+                    transition: "{{ uebergang }}"
             - delay:
                 milliseconds: 250
 
