@@ -1,10 +1,14 @@
 blueprint:
-  name: Treppenlicht mit Taster, Helligkeit und Farbe
-  description: Drei Treppenlichter werden nacheinander ein- oder ausgeschaltet. Ist mindestens ein Licht an, gehen alle aus. Helligkeit und Farbe sind einstellbar.
+  name: Treppenlicht mit zwei Tastern, Helligkeit und Farbe
+  description: Zwei Taster (EG und 1.OG) schalten drei Treppenlichter nacheinander ein oder aus. Ist mindestens ein Licht an, gehen alle aus. Helligkeit und Farbe sind einstellbar.
   domain: automation
   input:
-    taster:
-      name: Taster
+    taster_eg:
+      name: Taster EG (unten)
+      selector:
+        device: {}
+    taster_og:
+      name: Taster 1.OG (oben)
       selector:
         device: {}
     licht_unten:
@@ -35,33 +39,20 @@ blueprint:
       name: Farbe (leer lassen, wenn die Lampen keine Farbe können)
       selector:
         color_rgb: {}
-    reihenfolge_ein:
-      name: Reihenfolge beim Einschalten
-      default: unten
-      selector:
-        select:
-          options:
-            - label: Unten nach oben
-              value: unten
-            - label: Oben nach unten
-              value: oben
-    reihenfolge_aus:
-      name: Reihenfolge beim Ausschalten
-      default: oben
-      selector:
-        select:
-          options:
-            - label: Unten nach oben
-              value: unten
-            - label: Oben nach unten
-              value: oben
 
 triggers:
   - domain: mqtt
-    device_id: !input taster
+    device_id: !input taster_eg
     type: action
     subtype: single
     trigger: device
+    id: eg
+  - domain: mqtt
+    device_id: !input taster_og
+    type: action
+    subtype: single
+    trigger: device
+    id: og
 
 variables:
   unten: !input licht_unten
@@ -69,16 +60,17 @@ variables:
   oben: !input licht_oben
   helligkeit: !input helligkeit
   farbe: !input farbe
-  reihenfolge_ein: !input reihenfolge_ein
-  reihenfolge_aus: !input reihenfolge_aus
 
 actions:
+  - variables:
+      ein_liste: "{{ [unten, mitte, oben] if trigger.id == 'eg' else [oben, mitte, unten] }}"
+      aus_liste: "{{ [oben, mitte, unten] if trigger.id == 'eg' else [unten, mitte, oben] }}"
   - if:
       - condition: template
         value_template: "{{ is_state(unten, 'on') or is_state(mitte, 'on') or is_state(oben, 'on') }}"
     then:
       - repeat:
-          for_each: "{{ [unten, mitte, oben] if reihenfolge_aus == 'unten' else [oben, mitte, unten] }}"
+          for_each: "{{ aus_liste }}"
           sequence:
             - action: light.turn_off
               target:
@@ -87,7 +79,7 @@ actions:
                 milliseconds: 250
     else:
       - repeat:
-          for_each: "{{ [unten, mitte, oben] if reihenfolge_ein == 'unten' else [oben, mitte, unten] }}"
+          for_each: "{{ ein_liste }}"
           sequence:
             - action: light.turn_on
               target:
