@@ -1,17 +1,12 @@
 blueprint:
   name: Treppenlicht mit Taster, Helligkeit und Farbe
-  description: Drei Treppenlichter werden nacheinander ein- oder ausgeschaltet. Helligkeit und Farbe sind einstellbar. Ein Richtungs-Helfer merkt sich, ob die Treppe an ist.
+  description: Drei Treppenlichter werden nacheinander ein- oder ausgeschaltet. Ist mindestens ein Licht an, gehen alle aus. Helligkeit und Farbe sind einstellbar.
   domain: automation
   input:
     taster:
       name: Taster
       selector:
         device: {}
-    richtungs_helfer:
-      name: Richtungs-Helfer
-      selector:
-        entity:
-          domain: input_boolean
     licht_unten:
       name: Licht unten
       selector:
@@ -38,7 +33,6 @@ blueprint:
           unit_of_measurement: "%"
     farbe:
       name: Farbe (leer lassen, wenn die Lampen keine Farbe können)
-      default: []
       selector:
         color_rgb: {}
     reihenfolge_ein:
@@ -73,32 +67,16 @@ variables:
   unten: !input licht_unten
   mitte: !input licht_mitte
   oben: !input licht_oben
-  richtungs_helfer: !input richtungs_helfer
   helligkeit: !input helligkeit
   farbe: !input farbe
   reihenfolge_ein: !input reihenfolge_ein
   reihenfolge_aus: !input reihenfolge_aus
 
 actions:
-  - choose:
-      - conditions:
-          - condition: state
-            entity_id: !input richtungs_helfer
-            state: "off"
-        sequence:
-          - repeat:
-              for_each: "{{ [unten, mitte, oben] if reihenfolge_ein == 'unten' else [oben, mitte, unten] }}"
-              sequence:
-                - action: light.turn_on
-                  target:
-                    entity_id: "{{ repeat.item }}"
-                  data: "{{ {'brightness_pct': helligkeit} | combine({'rgb_color': farbe} if farbe else {}) }}"
-                - delay:
-                    milliseconds: 250
-          - action: input_boolean.turn_on
-            target:
-              entity_id: !input richtungs_helfer
-    default:
+  - if:
+      - condition: template
+        value_template: "{{ is_state(unten, 'on') or is_state(mitte, 'on') or is_state(oben, 'on') }}"
+    then:
       - repeat:
           for_each: "{{ [unten, mitte, oben] if reihenfolge_aus == 'unten' else [oben, mitte, unten] }}"
           sequence:
@@ -107,8 +85,25 @@ actions:
                 entity_id: "{{ repeat.item }}"
             - delay:
                 milliseconds: 250
-      - action: input_boolean.turn_off
-        target:
-          entity_id: !input richtungs_helfer
+    else:
+      - repeat:
+          for_each: "{{ [unten, mitte, oben] if reihenfolge_ein == 'unten' else [oben, mitte, unten] }}"
+          sequence:
+            - action: light.turn_on
+              target:
+                entity_id: "{{ repeat.item }}"
+              data:
+                brightness_pct: "{{ helligkeit }}"
+            - if:
+                - condition: template
+                  value_template: "{{ (farbe or []) | length > 0 }}"
+              then:
+                - action: light.turn_on
+                  target:
+                    entity_id: "{{ repeat.item }}"
+                  data:
+                    rgb_color: "{{ farbe }}"
+            - delay:
+                milliseconds: 250
 
 mode: single
