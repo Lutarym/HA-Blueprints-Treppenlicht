@@ -1,6 +1,6 @@
 blueprint:
-  name: Treppenlicht mit zwei Tastern, Helligkeit und Farbe
-  description: Zwei Taster (EG und 1.OG) schalten drei Treppenlichter nacheinander ein oder aus. Ist mindestens ein Licht an, gehen alle aus. Helligkeit und Farbe sind einstellbar.
+  name: Treppenlicht mit zwei Tastern, Helligkeit, Farbe und Nachtmodus
+  description: Zwei Taster (EG und 1.OG) schalten drei Treppenlichter nacheinander ein oder aus. Doppelklick startet den Nachtmodus mit eigener Helligkeit und Farbe. Ist mindestens ein Licht an, gehen alle aus.
   domain: automation
   input:
     taster_eg:
@@ -39,6 +39,20 @@ blueprint:
       name: Farbe (leer lassen, wenn die Lampen keine Farbe können)
       selector:
         color_rgb: {}
+    helligkeit_nacht:
+      name: Helligkeit Nachtmodus (Doppelklick)
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+    farbe_nacht:
+      name: Farbe Nachtmodus (Doppelklick, leer lassen für keine Farbe)
+      default: [0, 0, 255]
+      selector:
+        color_rgb: {}
 
 triggers:
   - domain: mqtt
@@ -53,6 +67,18 @@ triggers:
     subtype: single
     trigger: device
     id: og
+  - domain: mqtt
+    device_id: !input taster_eg
+    type: action
+    subtype: double
+    trigger: device
+    id: eg_double
+  - domain: mqtt
+    device_id: !input taster_og
+    type: action
+    subtype: double
+    trigger: device
+    id: og_double
 
 variables:
   unten: !input licht_unten
@@ -60,11 +86,15 @@ variables:
   oben: !input licht_oben
   helligkeit: !input helligkeit
   farbe: !input farbe
+  helligkeit_nacht: !input helligkeit_nacht
+  farbe_nacht: !input farbe_nacht
 
 actions:
   - variables:
-      ein_liste: "{{ [unten, mitte, oben] if trigger.id == 'eg' else [oben, mitte, unten] }}"
-      aus_liste: "{{ [oben, mitte, unten] if trigger.id == 'eg' else [unten, mitte, oben] }}"
+      ein_liste: "{{ [unten, mitte, oben] if trigger.id in ['eg', 'eg_double'] else [oben, mitte, unten] }}"
+      aus_liste: "{{ [oben, mitte, unten] if trigger.id in ['eg', 'eg_double'] else [unten, mitte, oben] }}"
+      ziel_helligkeit: "{{ helligkeit_nacht if trigger.id in ['eg_double', 'og_double'] else helligkeit }}"
+      ziel_farbe: "{{ farbe_nacht if trigger.id in ['eg_double', 'og_double'] else farbe }}"
   - if:
       - condition: template
         value_template: "{{ is_state(unten, 'on') or is_state(mitte, 'on') or is_state(oben, 'on') }}"
@@ -85,16 +115,16 @@ actions:
               target:
                 entity_id: "{{ repeat.item }}"
               data:
-                brightness_pct: "{{ helligkeit }}"
+                brightness_pct: "{{ ziel_helligkeit }}"
             - if:
                 - condition: template
-                  value_template: "{{ (farbe or []) | length > 0 }}"
+                  value_template: "{{ (ziel_farbe or []) | length > 0 }}"
               then:
                 - action: light.turn_on
                   target:
                     entity_id: "{{ repeat.item }}"
                   data:
-                    rgb_color: "{{ farbe }}"
+                    rgb_color: "{{ ziel_farbe }}"
             - delay:
                 milliseconds: 250
 
