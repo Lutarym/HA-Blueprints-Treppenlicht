@@ -1,5 +1,5 @@
 blueprint:
-  name: Treppenlicht mit zwei Tastern, Helligkeit, Farbe, Nachtmodus und Übergang
+  name: Treppenlicht mit zwei Tastern, Helligkeit, Farbtemperatur, Nachtmodus und Übergang
   description: Zwei Taster (EG und 1.OG) schalten drei Treppenlichter nacheinander ein oder aus, mit weichem Übergang. Doppelklick wechselt zwischen Nachtmodus und normal, ohne auszuschalten.
   domain: automation
   input:
@@ -35,11 +35,14 @@ blueprint:
           max: 100
           step: 1
           unit_of_measurement: "%"
-    farbe:
-      name: Farbe (leer lassen, wenn die Lampen keine Farbe können)
-      default: [255, 167, 87]
+    farbtemperatur:
+      name: Farbtemperatur (normaler Modus)
+      default: 2700
       selector:
-        color_rgb: {}
+        color_temp:
+          unit: kelvin
+          min: 2700
+          max: 6500
     uebergang:
       name: Übergangszeit (Ein- und Ausblenden)
       default: 1
@@ -95,7 +98,7 @@ variables:
   mitte: !input licht_mitte
   oben: !input licht_oben
   helligkeit: !input helligkeit
-  farbe: !input farbe
+  farbtemperatur: !input farbtemperatur
   uebergang: !input uebergang
   helligkeit_nacht: !input helligkeit_nacht
   farbe_nacht: !input farbe_nacht
@@ -108,7 +111,6 @@ actions:
       ein_liste: "{{ [unten, mitte, oben] if trigger.id in ['eg', 'eg_double'] else [oben, mitte, unten] }}"
       aus_liste: "{{ [oben, mitte, unten] if trigger.id in ['eg', 'eg_double'] else [unten, mitte, oben] }}"
       ziel_helligkeit: "{{ helligkeit_nacht if nacht else helligkeit }}"
-      ziel_farbe: "{{ farbe_nacht if nacht else farbe }}"
   - if:
       - condition: template
         value_template: "{{ not doppel and (is_state(unten, 'on') or is_state(mitte, 'on') or is_state(oben, 'on')) }}"
@@ -130,14 +132,25 @@ actions:
             - choose:
                 - conditions:
                     - condition: template
-                      value_template: "{{ (ziel_farbe or []) | length > 0 }}"
+                      value_template: "{{ nacht and (farbe_nacht or []) | length > 0 }}"
                   sequence:
                     - action: light.turn_on
                       target:
                         entity_id: "{{ repeat.item }}"
                       data:
                         brightness_pct: "{{ ziel_helligkeit }}"
-                        rgb_color: "{{ ziel_farbe }}"
+                        rgb_color: "{{ farbe_nacht }}"
+                        transition: "{{ uebergang }}"
+                - conditions:
+                    - condition: template
+                      value_template: "{{ not nacht }}"
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ repeat.item }}"
+                      data:
+                        brightness_pct: "{{ ziel_helligkeit }}"
+                        color_temp_kelvin: "{{ farbtemperatur }}"
                         transition: "{{ uebergang }}"
               default:
                 - action: light.turn_on
