@@ -28,7 +28,7 @@ blueprint:
           domain: light
     helligkeit:
       name: Helligkeit
-      default: 100
+      default: 20
       selector:
         number:
           min: 1
@@ -37,6 +37,7 @@ blueprint:
           unit_of_measurement: "%"
     farbe:
       name: Farbe (leer lassen, wenn die Lampen keine Farbe können)
+      default: [255, 167, 87]
       selector:
         color_rgb: {}
     uebergang:
@@ -50,7 +51,7 @@ blueprint:
           unit_of_measurement: s
     helligkeit_nacht:
       name: Helligkeit Nachtmodus (Doppelklick)
-      default: 5
+      default: 1
       selector:
         number:
           min: 1
@@ -59,7 +60,7 @@ blueprint:
           unit_of_measurement: "%"
     farbe_nacht:
       name: Farbe Nachtmodus (Doppelklick, leer lassen für keine Farbe)
-      default: [0, 0, 255]
+      default: [255, 0, 0]
       selector:
         color_rgb: {}
 
