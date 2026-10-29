@@ -1,0 +1,104 @@
+blueprint:
+  name: Treppenlicht mit zwei Tastern
+  description: >
+    Drei Treppenlichter werden abhängig von ihrem Zustand
+    nacheinander geschaltet. Die Richtung ist konfigurierbar.
+  domain: automation
+
+  input:
+    licht_unten:
+      name: Licht unten
+      selector:
+        entity:
+          filter:
+            - domain: light
+
+    licht_mitte:
+      name: Licht Mitte
+      selector:
+        entity:
+          filter:
+            - domain: light
+
+    licht_oben:
+      name: Licht oben
+      selector:
+        entity:
+          filter:
+            - domain: light
+
+    richtung:
+      name: Einschalt-Richtung
+      selector:
+        select:
+          options:
+            - label: Unten nach oben
+              value: unten
+            - label: Oben nach unten
+              value: oben
+
+    verzoegerung:
+      name: Verzögerung
+      default: 250
+      selector:
+        number:
+          min: 0
+          max: 2000
+          step: 50
+          unit_of_measurement: ms
+
+mode: single
+max_exceeded: silent
+
+trigger: []
+
+variables:
+  unten: !input licht_unten
+  mitte: !input licht_mitte
+  oben: !input licht_oben
+  richtung: !input richtung
+  pause: !input verzoegerung
+
+  alle_aus: >
+    {{ is_state(unten, 'off')
+       and is_state(mitte, 'off')
+       and is_state(oben, 'off') }}
+
+action:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ alle_aus }}"
+        sequence:
+          - repeat:
+              for_each: >
+                {{ [unten, mitte, oben]
+                   if richtung == 'unten'
+                   else [oben, mitte, unten] }}
+              sequence:
+                - action: light.turn_on
+                  target:
+                    entity_id: "{{ repeat.item }}"
+                - if:
+                    - condition: template
+                      value_template: "{{ not repeat.last }}"
+                  then:
+                    - delay:
+                        milliseconds: "{{ pause }}"
+
+    default:
+      - repeat:
+          for_each: >
+            {{ [oben, mitte, unten]
+               if richtung == 'unten'
+               else [unten, mitte, oben] }}
+          sequence:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ repeat.item }}"
+            - if:
+                - condition: template
+                  value_template: "{{ not repeat.last }}"
+              then:
+                - delay:
+                    milliseconds: "{{ pause }}"
