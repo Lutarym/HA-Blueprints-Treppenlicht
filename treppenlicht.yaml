@@ -1,6 +1,6 @@
 blueprint:
   name: Treppenlicht mit zwei Tastern, Helligkeit, Farbe, Nachtmodus und Übergang
-  description: Zwei Taster (EG und 1.OG) schalten drei Treppenlichter nacheinander ein oder aus, mit weichem Übergang. Doppelklick setzt immer den Nachtmodus mit eigener Helligkeit und Farbe und schaltet nie aus.
+  description: Zwei Taster (EG und 1.OG) schalten drei Treppenlichter nacheinander ein oder aus, mit weichem Übergang. Doppelklick wechselt zwischen Nachtmodus und normal, ohne auszuschalten.
   domain: automation
   input:
     taster_eg:
@@ -101,14 +101,16 @@ variables:
 
 actions:
   - variables:
-      nacht: "{{ trigger.id in ['eg_double', 'og_double'] }}"
+      doppel: "{{ trigger.id in ['eg_double', 'og_double'] }}"
+      nacht_aktiv: "{% set ns = namespace(a=false) %}{% for l in [unten, mitte, oben] %}{% if is_state(l, 'on') and state_attr(l, 'brightness') | float(999) <= helligkeit_nacht * 2.55 + 3 %}{% set ns.a = true %}{% endif %}{% endfor %}{{ ns.a }}"
+      nacht: "{{ doppel and not nacht_aktiv }}"
       ein_liste: "{{ [unten, mitte, oben] if trigger.id in ['eg', 'eg_double'] else [oben, mitte, unten] }}"
       aus_liste: "{{ [oben, mitte, unten] if trigger.id in ['eg', 'eg_double'] else [unten, mitte, oben] }}"
       ziel_helligkeit: "{{ helligkeit_nacht if nacht else helligkeit }}"
       ziel_farbe: "{{ farbe_nacht if nacht else farbe }}"
   - if:
       - condition: template
-        value_template: "{{ not nacht and (is_state(unten, 'on') or is_state(mitte, 'on') or is_state(oben, 'on')) }}"
+        value_template: "{{ not doppel and (is_state(unten, 'on') or is_state(mitte, 'on') or is_state(oben, 'on')) }}"
     then:
       - repeat:
           for_each: "{{ aus_liste }}"
