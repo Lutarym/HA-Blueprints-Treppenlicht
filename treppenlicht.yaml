@@ -124,21 +124,24 @@ actions:
       - repeat:
           for_each: "{{ ein_liste }}"
           sequence:
-            - action: light.turn_on
-              target:
-                entity_id: "{{ repeat.item }}"
-              data:
-                brightness_pct: "{{ ziel_helligkeit }}"
-                transition: "{{ uebergang }}"
-            - if:
-                - condition: template
-                  value_template: "{{ (ziel_farbe or []) | length > 0 }}"
-              then:
+            - choose:
+                - conditions:
+                    - condition: template
+                      value_template: "{{ (ziel_farbe or []) | length > 0 }}"
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ repeat.item }}"
+                      data:
+                        brightness_pct: "{{ ziel_helligkeit }}"
+                        rgb_color: "{{ ziel_farbe }}"
+                        transition: "{{ uebergang }}"
+              default:
                 - action: light.turn_on
                   target:
                     entity_id: "{{ repeat.item }}"
                   data:
-                    rgb_color: "{{ ziel_farbe }}"
+                    brightness_pct: "{{ ziel_helligkeit }}"
                     transition: "{{ uebergang }}"
             - delay:
                 milliseconds: 250
